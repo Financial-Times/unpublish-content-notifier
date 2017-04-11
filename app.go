@@ -12,9 +12,12 @@ import (
 	"github.com/gorilla/mux"
 
 	tid "github.com/Financial-Times/transactionid-utils-go"
+	"github.com/jawher/mow.cli"
 )
 
 var client = &http.Client{}
+
+var vulcanHost *string
 
 func init() {
 	f := &log.TextFormatter{
@@ -26,14 +29,26 @@ func init() {
 }
 
 func main() {
-	r := mux.NewRouter()
-	r.HandleFunc("/notify", forwardToTransformerAndSenttoS3).Methods("POST")
-	r.HandleFunc("/__health", dummyHC).Methods("GET")
-	http.Handle("/", r)
-	log.Info("Starting server...")
-	err := http.ListenAndServe(":9090", nil)
-	if err != nil {
-		log.WithError(err).Panic("Couldn't set up HTTP listener")
+
+	app := cli.App("unpublish-content-notifier", "notifies unpublished content")
+
+	vulcanHost = app.String(cli.StringOpt{
+		Name:   "vulcan-host",
+		Value:  "localhost",
+		Desc:   "vulcan host",
+		EnvVar: "VULCAN_HOST",
+	})
+
+	app.Action = func() {
+		r := mux.NewRouter()
+		r.HandleFunc("/notify", forwardToTransformerAndSenttoS3).Methods("POST")
+		r.HandleFunc("/__health", dummyHC).Methods("GET")
+		http.Handle("/", r)
+		log.Info("Starting server...")
+		err := http.ListenAndServe(":8080", nil)
+		if err != nil {
+			log.WithError(err).Panic("Couldn't set up HTTP listener")
+		}
 	}
 }
 
@@ -53,7 +68,7 @@ func forwardToTransformerAndSenttoS3(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// call the mapper
-	mapperReq, err := http.NewRequest("POST", "http://localhost:8080/map?preview=true", bytes.NewReader(mesgBody))
+	mapperReq, err := http.NewRequest("POST", "http://"+*vulcanHost+":8080/map?preview=true", bytes.NewReader(mesgBody))
 	if err != nil {
 		log.WithField("transaction_id", transactionID).WithError(err).Error("Error in creating request to mapper")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -77,7 +92,7 @@ func forwardToTransformerAndSenttoS3(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// call the s3 writer
-	s3WriterReq, err := http.NewRequest("PUT", "http://localhost:8080/"+c.UUID, mapperResp.Body)
+	s3WriterReq, err := http.NewRequest("PUT", "http://"+*vulcanHost+":8080/"+c.UUID, mapperResp.Body)
 	if err != nil {
 		log.WithField("transaction_id", transactionID).WithError(err).Error("Error in creating request to S3 writer")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
