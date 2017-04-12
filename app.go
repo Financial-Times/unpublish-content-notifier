@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -50,10 +51,15 @@ func main() {
 			log.WithError(err).Panic("Couldn't set up HTTP listener")
 		}
 	}
+
+	err := app.Run(os.Args)
+	if err != nil {
+		println(err)
+	}
 }
 
 func forwardToTransformerAndSenttoS3(w http.ResponseWriter, r *http.Request) {
-	transactionID := tid.GetTransactionIDFromRequest(r)
+	transactionID := r.Header.Get(tid.TransactionIDHeader)
 	var c content
 	mesgBody, err := ioutil.ReadAll(r.Body)
 	if err != nil {
