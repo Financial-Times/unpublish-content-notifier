@@ -115,7 +115,7 @@ func forwardToTransformerAndSenttoS3(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s3WriterResp.StatusCode != http.StatusCreated {
+	if s3WriterResp.StatusCode != http.StatusCreated && s3WriterResp.StatusCode != http.StatusOK {
 		http.Error(w, fmt.Sprintf("s3 writer returned status %v", s3WriterResp.StatusCode), http.StatusInternalServerError)
 		return
 	}
